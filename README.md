@@ -2,14 +2,24 @@
 
 D 言語で書いたヤッツィ (Yacht) ダイスゲーム。学習用に段階的に育てているプロジェクト。
 
-## いま動くもの
+## いま動くもの (`main` ブランチ)
 
+- **Web 版 (WebAssembly)**: D で書いたゲームロジックを WASM にコンパイルし、
+  ブラウザだけで遊べる。サーバ不要。GitHub Pages から配信できる構成。
 - **CLI 版**: ターミナルで対話プレイ (REPL ループ)
-- **Web 版**: vibe-d HTTP サーバ + ブラウザ UI (vanilla JS、日本語/英語切替、役名ホバー説明、遊び方モーダル付き)
+
+学習用の **サーバ版** (vibe-d 製 HTTP サーバ + REST API) は `server` ブランチに保存してある。
 
 ## 動かす
 
-必要なもの: `dmd` と [`dub`](https://dub.pm/)。Web 版の初回ビルド時のみ vibe-d 取得のためにインターネット接続が必要。
+### 必要なもの
+
+| 用途         | パッケージ                              |
+| ------------ | --------------------------------------- |
+| CLI 版ビルド | `dmd` と [`dub`](https://dub.pm/)        |
+| WASM 版ビルド | `ldc` (LDC) と `lld` (wasm-ld)           |
+
+Arch なら: `sudo pacman -S dlang dub ldc lld`
 
 ### CLI 版
 
@@ -17,14 +27,20 @@ D 言語で書いたヤッツィ (Yacht) ダイスゲーム。学習用に段階
 dub run -c cli
 ```
 
-### Web 版
+### Web 版 (WASM)
+
+ビルド:
 
 ```sh
-dub run -c web
-# → Yacht web server: http://127.0.0.1:8080/
+scripts/build-wasm.sh        # → public/yacht.wasm
 ```
 
-ブラウザで <http://127.0.0.1:8080/> を開く。
+ローカル動作確認 (任意の静的ファイルサーバで OK):
+
+```sh
+cd public && python3 -m http.server 8765
+# → http://127.0.0.1:8765/
+```
 
 ### テスト
 
@@ -34,23 +50,27 @@ dub test       # cli config の unittest が走る (5 modules)
 
 ## ブランチ構成
 
-| ブランチ | 内容                                                              |
-| -------- | ----------------------------------------------------------------- |
-| `main`   | アクティブ開発。今後 **WebAssembly 版** に移行する予定             |
-| `server` | CLI + vibe-d Web 版のスナップショット (サーバ版として学習用に保存) |
-
-GitHub Pages で公開できるようにすることが目下のゴール。
+| ブランチ | 内容                                                                       |
+| -------- | -------------------------------------------------------------------------- |
+| `main`   | WebAssembly 版 (現行・GitHub Pages 配信用)。CLI 版もここで動く             |
+| `server` | CLI + vibe-d Web 版のスナップショット (サーバ版として学習用に保存)          |
 
 ## ディレクトリ構成
 
 ```text
 Yacht/
 ├── source/
-│   ├── cli/app.d        # CLI 版エントリ
-│   ├── web/             # Web 版 (vibe-d)
-│   ├── game/            # ドメイン (CLI/Web 共通: state, dice, score, category)
-│   └── ui/              # CLI 用 入出力 (parse, render)
-├── public/              # Web 用静的アセット (index.html / style.css / app.js)
+│   ├── cli/app.d        # CLI 版エントリ (REPL ループ)
+│   ├── wasm/exports.d   # WASM 用 extern(C) エクスポート + ゲーム状態 + PRNG
+│   ├── game/            # ドメイン (CLI/WASM 共通: state, dice, score, category)
+│   ├── ui/              # CLI 用 入出力 (parse, render)
+│   └── web/             # サーバ版用 (server ブランチで使用)
+├── public/              # WASM 版フロントエンド (GitHub Pages の配信元)
+│   ├── index.html
+│   ├── app.js           # WASM ロード + UI
+│   ├── style.css
+│   └── yacht.wasm       # ビルド成果物 (リポジトリにコミット済)
+├── scripts/build-wasm.sh
 ├── docs/                # 書き方・設計ドキュメント
 ├── dub.json             # dub プロジェクト設定 (cli / web の 2 configuration)
 └── CLAUDE.md            # AI 連携ルール
@@ -64,7 +84,8 @@ Yacht/
 | `coding-style.md`        | D コーディング規約                                |
 | `interactive-cli.md`     | 対話型 CLI の REPL パターン                       |
 | `architecture.md`        | モジュール依存・クラス図・ターン進行              |
-| `web.md`                 | Web 版の技術スタック・アーキテクチャ・REST API     |
+| `web.md`                 | サーバ版の技術スタック・REST API (`server` ブランチ) |
+| `wasm.md`                | WASM 版の設計・ビルド・JS 連携                    |
 
 ## ライセンス
 

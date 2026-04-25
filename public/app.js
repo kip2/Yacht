@@ -1,6 +1,5 @@
 "use strict";
 
-const STORAGE_KEY = "yacht.gameId";
 const LANG_KEY = "yacht.lang";
 
 const I18N = {
@@ -27,27 +26,17 @@ const I18N = {
     howToPlayBtn: "遊び方",
     helpTitle: "ヨットの遊び方",
     close: "閉じる",
+    loading: "読み込み中...",
+    loadFailed: "yacht.wasm の読み込みに失敗しました。ページを再読み込みしてください。",
     categories: {
-      "ones": "エース",
-      "twos": "デュース",
-      "threes": "トレイ",
-      "fours": "フォー",
-      "fives": "ファイブ",
-      "sixes": "シックス",
-      "full-house": "フルハウス",
-      "four-of-a-kind": "フォーダイス",
-      "little-straight": "リトルストレート",
-      "big-straight": "ビッグストレート",
-      "choice": "チョイス",
-      "yacht": "ヨット",
+      "ones": "エース", "twos": "デュース", "threes": "トレイ", "fours": "フォー",
+      "fives": "ファイブ", "sixes": "シックス", "full-house": "フルハウス",
+      "four-of-a-kind": "フォーダイス", "little-straight": "リトルストレート",
+      "big-straight": "ビッグストレート", "choice": "チョイス", "yacht": "ヨット",
     },
     categoryTips: {
-      "ones": "1 の目の合計",
-      "twos": "2 の目の合計",
-      "threes": "3 の目の合計",
-      "fours": "4 の目の合計",
-      "fives": "5 の目の合計",
-      "sixes": "6 の目の合計",
+      "ones": "1 の目の合計", "twos": "2 の目の合計", "threes": "3 の目の合計",
+      "fours": "4 の目の合計", "fives": "5 の目の合計", "sixes": "6 の目の合計",
       "full-house": "3 個揃い + 2 個揃い → 5 個の合計点",
       "four-of-a-kind": "同じ目が 4 個以上 → その目 × 4",
       "little-straight": "1-2-3-4-5 が揃う → 30 点",
@@ -99,27 +88,17 @@ const I18N = {
     howToPlayBtn: "How to play",
     helpTitle: "How to play Yacht",
     close: "Close",
+    loading: "Loading...",
+    loadFailed: "Failed to load yacht.wasm. Please reload the page.",
     categories: {
-      "ones": "Ones",
-      "twos": "Twos",
-      "threes": "Threes",
-      "fours": "Fours",
-      "fives": "Fives",
-      "sixes": "Sixes",
-      "full-house": "Full House",
-      "four-of-a-kind": "Four of a Kind",
-      "little-straight": "Little Straight",
-      "big-straight": "Big Straight",
-      "choice": "Choice",
-      "yacht": "Yacht",
+      "ones": "Ones", "twos": "Twos", "threes": "Threes", "fours": "Fours",
+      "fives": "Fives", "sixes": "Sixes", "full-house": "Full House",
+      "four-of-a-kind": "Four of a Kind", "little-straight": "Little Straight",
+      "big-straight": "Big Straight", "choice": "Choice", "yacht": "Yacht",
     },
     categoryTips: {
-      "ones": "Sum of 1s",
-      "twos": "Sum of 2s",
-      "threes": "Sum of 3s",
-      "fours": "Sum of 4s",
-      "fives": "Sum of 5s",
-      "sixes": "Sum of 6s",
+      "ones": "Sum of 1s", "twos": "Sum of 2s", "threes": "Sum of 3s",
+      "fours": "Sum of 4s", "fives": "Sum of 5s", "sixes": "Sum of 6s",
       "full-house": "3-of-a-kind + pair → sum of all 5",
       "four-of-a-kind": "4 or more same → face × 4",
       "little-straight": "1-2-3-4-5 → 30 pts",
@@ -150,17 +129,20 @@ const I18N = {
   },
 };
 
-const CATEGORY_ORDER = [
+// Category index は WASM の Category enum と一致させる。
+const CATEGORY_KEYS = [
   "ones", "twos", "threes", "fours", "fives", "sixes",
   "full-house", "four-of-a-kind", "little-straight", "big-straight",
   "choice", "yacht",
 ];
 
 const state = {
-  gameId: null,
   snapshot: null,
   lang: localStorage.getItem(LANG_KEY) || "ja",
+  names: [],   // プレイヤー名 (WASM では持たない、JS 側で管理)
 };
+
+const wasm = { exports: null };
 
 const el = (id) => document.getElementById(id);
 
@@ -171,12 +153,79 @@ function t(key, ...args) {
 function tCat(key) { return I18N[state.lang].categories[key] || key; }
 function tCatTip(key) { return I18N[state.lang].categoryTips[key] || ""; }
 
-async function api(method, path, body) {
-  const opts = { method, headers: { "content-type": "application/json" } };
-  if (body !== undefined) opts.body = JSON.stringify(body);
-  const r = await fetch(path, opts);
-  return r.json();
+// =========================================================================
+// WASM 読み込みと、状態を構築するアダプタ層
+// =========================================================================
+
+async function loadWasm() {
+  // GitHub Pages や python http.server だと wasm の Content-Type が
+  // 適切でないことがあるため、ArrayBuffer 経由で確実に読み込む。
+  const r = await fetch("yacht.wasm");
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const buf = await r.arrayBuffer();
+  const m = await WebAssembly.instantiate(buf, {});
+  wasm.exports = m.instance.exports;
 }
+
+// WASM のエクスポートから「以前の REST レスポンスと同じ形」の state を作る。
+// render*() 系をそのまま使い回せる。
+function snapshotFromWasm() {
+  const w = wasm.exports;
+  const playerCount = w.yacht_player_count();
+  const turnStarted = !!w.yacht_turn_started();
+  const isOver = !!w.yacht_is_over();
+
+  const dice = [];
+  for (let i = 0; i < 5; i++) dice.push(w.yacht_die_value(i));
+
+  const players = [];
+  for (let p = 0; p < playerCount; p++) {
+    const scores = {};
+    CATEGORY_KEYS.forEach((key, c) => {
+      scores[key] = w.yacht_score_used(p, c) ? w.yacht_score_value(p, c) : null;
+    });
+    players.push({
+      name: state.names[p] || ("P" + (p + 1)),
+      scores,
+      total: w.yacht_player_total(p),
+    });
+  }
+
+  const snap = {
+    currentPlayer: w.yacht_current_player(),
+    rollsLeft: w.yacht_rolls_left(),
+    turnStarted,
+    isOver,
+    dice,
+    players,
+  };
+
+  if (turnStarted && !isOver) {
+    const preview = {};
+    CATEGORY_KEYS.forEach((key, c) => {
+      const v = w.yacht_preview(c);
+      if (v >= 0) preview[key] = v;
+    });
+    snap.preview = preview;
+  }
+
+  if (isOver) {
+    let best = -1, winner = "";
+    players.forEach((p) => {
+      if (p.total > best) { best = p.total; winner = p.name; }
+    });
+    snap.winner = winner;
+    snap.winnerScore = best;
+  }
+
+  return snap;
+}
+
+function syncState() { state.snapshot = snapshotFromWasm(); }
+
+// =========================================================================
+// 国際化と一般 UI
+// =========================================================================
 
 function applyStaticI18n() {
   document.documentElement.lang = state.lang;
@@ -210,18 +259,22 @@ function renderNameFields() {
   }
 }
 
-async function startNewGame() {
+// =========================================================================
+// アクション
+// =========================================================================
+
+function startNewGame() {
   const n = parseInt(el("num-players").value, 10) || 1;
   const inputs = el("name-fields").querySelectorAll("input");
   const names = [];
   inputs.forEach((inp, i) => {
     names.push((inp.value || "").trim() || "P" + (i + 1));
   });
-  const r = await api("POST", "/api/new", { playerCount: n, names });
-  if (r.error) { alert(r.error); return; }
-  state.gameId = r.gameId;
-  state.snapshot = r.state;
-  localStorage.setItem(STORAGE_KEY, r.gameId);
+  state.names = names;
+  // 32-bit 符号なしシード。0 だと xorshift が縮退するので最低 1 を入れる。
+  const seed = ((Math.random() * 0x100000000) >>> 0) || 1;
+  wasm.exports.yacht_new(n, seed);
+  syncState();
   showGame();
   render();
 }
@@ -229,56 +282,55 @@ async function startNewGame() {
 function showGame() { el("setup").hidden = true; el("game").hidden = false; }
 function showSetup() { el("setup").hidden = false; el("game").hidden = true; }
 
-async function rollClicked() {
+function rollClicked() {
   const s = state.snapshot;
   if (!s) return;
-  if (!s.turnStarted) await rollAll();
-  else await rerollSelected();
+  if (!s.turnStarted) rollAll();
+  else rerollSelected();
 }
 
-async function rollAll() {
-  const r = await api("POST", "/api/roll", { gameId: state.gameId });
-  if (r.error) flash(r.error);
-  state.snapshot = r.state;
+function rollAll() {
+  if (!wasm.exports.yacht_roll_all()) flash("cannot roll");
+  syncState();
   render();
 }
 
-async function rerollSelected() {
+function rerollSelected() {
   const positions = [...document.querySelectorAll(".die.selected")]
     .map((d) => parseInt(d.dataset.idx, 10));
-  if (positions.length === 0) {
-    flash(t("needSelection"));
-    return;
-  }
-  const r = await api("POST", "/api/reroll", { gameId: state.gameId, positions });
-  if (r.error) flash(r.error);
-  state.snapshot = r.state;
+  if (positions.length === 0) { flash(t("needSelection")); return; }
+  const mask = positions.reduce((m, p) => m | (1 << p), 0);
+  if (!wasm.exports.yacht_reroll(mask)) flash("cannot reroll");
+  syncState();
   render();
 }
 
-async function recordScore(category) {
-  const r = await api("POST", "/api/score", { gameId: state.gameId, category });
-  if (r.error) { flash(r.error); return; }
-  state.snapshot = r.state;
+function recordScore(catKey) {
+  const c = CATEGORY_KEYS.indexOf(catKey);
+  if (c < 0) return;
+  if (wasm.exports.yacht_record(c) < 0) { flash("cannot record"); return; }
+  syncState();
   render();
 }
 
-async function restart() {
+function restart() {
   if (!confirm(t("confirmAbandon"))) return;
-  localStorage.removeItem(STORAGE_KEY);
-  state.gameId = null;
   state.snapshot = null;
+  state.names = [];
   renderNameFields();
   showSetup();
 }
 
 let flashTimer = null;
 function flash(msg) {
-  const s = el("status");
-  s.textContent = msg;
+  el("status").textContent = msg;
   if (flashTimer) clearTimeout(flashTimer);
   flashTimer = setTimeout(() => { if (state.snapshot) renderStatus(state.snapshot); }, 1800);
 }
+
+// =========================================================================
+// 描画 (REST 版から流用)
+// =========================================================================
 
 function renderStatus(s) {
   if (s.isOver) { el("status").textContent = t("gameOver"); return; }
@@ -318,7 +370,6 @@ function renderRollButton(s) {
   btn.disabled = s.rollsLeft <= 0;
 }
 
-// 役名 + 説明の tooltip ホスト要素を作る。
 function makeCategoryHost(cat, content) {
   const host = document.createElement("span");
   host.className = "tip-host";
@@ -335,25 +386,22 @@ function renderCategories(s) {
   const wrap = el("categories");
   wrap.innerHTML = "";
   if (s.isOver || !s.turnStarted) return;
-  CATEGORY_ORDER.forEach((cat) => {
-    if (!(cat in s.preview)) return;
+  CATEGORY_KEYS.forEach((cat) => {
+    if (!(cat in (s.preview || {}))) return;
     const label = tCat(cat);
     const sc = s.preview[cat];
 
     const btn = document.createElement("button");
     btn.className = "cat-btn tip-host";
     btn.type = "button";
-
     const name = document.createElement("span");
     name.className = "cat-name";
     name.textContent = label;
     btn.appendChild(name);
-
     const score = document.createElement("span");
     score.className = "cat-score";
     score.textContent = "+" + sc;
     btn.appendChild(score);
-
     const tip = document.createElement("span");
     tip.className = "tip";
     tip.textContent = tCatTip(cat);
@@ -378,7 +426,7 @@ function renderScoreboard(s) {
   });
   tbl.appendChild(headRow);
 
-  CATEGORY_ORDER.forEach((cat) => {
+  CATEGORY_KEYS.forEach((cat) => {
     const row = document.createElement("tr");
     const labelCell = document.createElement("td");
     labelCell.appendChild(makeCategoryHost(cat, tCat(cat)));
@@ -464,28 +512,12 @@ function renderHelpModal() {
   c.appendChild(rolesList);
 }
 
-function openHelp() {
-  el("help-modal").hidden = false;
-  renderHelpModal();
-}
+function openHelp() { el("help-modal").hidden = false; renderHelpModal(); }
 function closeHelp() { el("help-modal").hidden = true; }
 
-async function tryResume() {
-  const id = localStorage.getItem(STORAGE_KEY);
-  if (!id) return false;
-  try {
-    const r = await api("GET", "/api/state?gameId=" + encodeURIComponent(id));
-    if (r.state) {
-      state.gameId = id;
-      state.snapshot = r.state;
-      showGame();
-      render();
-      return true;
-    }
-  } catch (_) {}
-  localStorage.removeItem(STORAGE_KEY);
-  return false;
-}
+// =========================================================================
+// 起動
+// =========================================================================
 
 el("num-players").addEventListener("input", renderNameFields);
 el("btn-new").addEventListener("click", startNewGame);
@@ -503,4 +535,16 @@ document.addEventListener("keydown", (e) => {
 
 applyStaticI18n();
 renderNameFields();
-tryResume();
+
+(async () => {
+  el("btn-new").disabled = true;
+  el("btn-new").textContent = t("loading");
+  try {
+    await loadWasm();
+    el("btn-new").disabled = false;
+    el("btn-new").textContent = t("start");
+  } catch (e) {
+    console.error(e);
+    el("btn-new").textContent = t("loadFailed");
+  }
+})();

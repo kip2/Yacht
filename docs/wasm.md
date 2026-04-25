@@ -1,7 +1,38 @@
-# WebAssembly 版 (作業中)
+# WebAssembly 版
 
-サーバ無しで GitHub Pages から遊べるようにするのが目標。
+サーバ無しで GitHub Pages から遊べる構成。
 D で書いたゲームロジックを WASM にコンパイルし、ブラウザだけで動かす。
+
+## ビルド
+
+```sh
+scripts/build-wasm.sh         # → public/yacht.wasm (約 8 KB)
+```
+
+スクリプトの中身は LDC を直接呼ぶだけ:
+
+```sh
+ldc2 -mtriple=wasm32-unknown-unknown-wasm \
+  -betterC -Os -release --boundscheck=off \
+  source/wasm/exports.d source/game/category.d \
+  -L=--no-entry -L=--export-dynamic \
+  -of=public/yacht.wasm
+```
+
+LDC + wasm-ld (lld の一部) が必要。Arch なら `sudo pacman -S ldc lld`。
+
+## ローカルで遊ぶ
+
+任意の静的サーバで `public/` を配信:
+
+```sh
+cd public && python3 -m http.server 8765
+# → http://127.0.0.1:8765/
+```
+
+(Python の `http.server` は `.wasm` を `application/wasm` で返してくれる。
+それ以外のサーバを使う場合、`fetch` → `arrayBuffer` → `WebAssembly.instantiate`
+の経路で読んでいるので Content-Type は気にしなくていい。)
 
 ## 全体方針
 
@@ -167,22 +198,25 @@ const Yacht = {
 `Yacht.state()` が今までの REST レスポンスと同じ形を返せれば、
 `public/app.js` の `render*` 系はほぼそのまま使える。
 
-## ステップ計画
+## ステップの記録 (実装済)
 
-1. **LDC 導入** (← いまここ)
-2. `dub.json` に `wasm` configuration を追加し、`source/wasm/exports.d` で
-   "Hello from WASM" 相当の関数 1 つだけがビルドできることを確認。
-3. `exports.d` に PRNG とゲームロジックを実装し、unit テストはせず JS 側から呼ぶ。
-4. `public/app.js` に WASM ローダを追加し、REST 呼び出しを置き換える。
-   `index.html` / `style.css` は最小限の修正で済ます (UI 概念は同じ)。
-5. `public/yacht.wasm` を含めた状態で GitHub Pages から配信できるようにする
-   (Pages の設定は `main` ブランチの `/` か `/docs` を root に。後で決める)。
+1. **LDC + lld 導入** ✓
+2. `source/wasm/exports.d` に状態・PRNG・extern(C) エクスポートを実装 ✓
+3. `source/game/category.d` の `categoryNames` / `tryParseCategory` を
+   `version (D_BetterC) {} else { ... }` で WASM ビルドから外し、
+   `score()` と `Category` enum だけを共有 ✓
+4. `scripts/build-wasm.sh` でビルド (dub config は使わなかった。
+   wasm 出力名・リンクフラグは shell の方が素直だったため) ✓
+5. `public/app.js` を WASM 駆動に書き換え (REST 版は `server` ブランチに保存) ✓
 
-## 既知のリスク
+## 既知の制約 / 注意
 
-- `game.category` の `immutable string[]` が betterC で initial run-time work を要求する場合、
-  **モジュールを分割** する。`game.category.score` が pure かつ string を返さないので
-  関数だけは流用しやすいはず。
-- WASM では Random を毎回 JS から渡す方式 (`yacht_set_seed(uint)`) も検討する。
-- LDC のバージョン差で wasm リンク用フラグが変わる可能性あり (`-link-internally`,
-  `-L=--no-entry`, `-L=--export-all` など)。実機で試して docs を更新する。
+- ゲーム状態は WASM のリニアメモリ内 (`__gshared WasmGame g`) に持つ。
+  ページリロードで失われる (= 中断したゲームは復帰できない)。
+  必要になったら JS 側で snapshot を `localStorage` に保存して再現する仕掛けを足す。
+- ビルドは **`-release --boundscheck=off`** が必須。
+  デバッグビルドだと配列添字チェックの `__assert` が引き、リンクできない。
+- `game.category` から **string を扱う関数を WASM ビルドに含めると memcmp 未解決** で死ぬ。
+  分離は `version (D_BetterC)` だけで十分。
+- `--export-dynamic` で全 D 関数を export しているが、
+  wasm のサイズは ~8KB なので問題視していない。気になるなら個別 `--export=yacht_*` に切り替える。

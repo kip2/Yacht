@@ -16,17 +16,22 @@ enum Category : int
     yacht,
 }
 
-immutable string[] categoryNames = [
-    "ones", "twos", "threes", "fours", "fives", "sixes",
-    "full-house", "four-of-a-kind", "little-straight", "big-straight",
-    "choice", "yacht",
-];
+// 文字列名は betterC (= WASM ビルド) では使わないので除外する。
+// std.string の `==` 比較が memcmp を引き、wasm-ld が解決できないため。
+version (D_BetterC) {} else
+{
+    immutable string[] categoryNames = [
+        "ones", "twos", "threes", "fours", "fives", "sixes",
+        "full-house", "four-of-a-kind", "little-straight", "big-straight",
+        "choice", "yacht",
+    ];
 
-immutable string[] categoryAliases = [
-    "1", "2", "3", "4", "5", "6",
-    "fh", "4k", "ls", "bs",
-    "ch", "y",
-];
+    immutable string[] categoryAliases = [
+        "1", "2", "3", "4", "5", "6",
+        "fh", "4k", "ls", "bs",
+        "ch", "y",
+    ];
+}
 
 pure @safe int score(Category c, in int[] dice)
 {
@@ -47,6 +52,7 @@ pure @safe int score(Category c, in int[] dice)
     }
 }
 
+version (D_BetterC) {} else
 pure @safe bool tryParseCategory(string s, out Category c)
 {
     foreach (i, name; categoryNames)

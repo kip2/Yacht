@@ -1,6 +1,5 @@
 /bin/
 /.dub/
-/public/yacht.wasm
 *.o
 *.obj
 *.exe
