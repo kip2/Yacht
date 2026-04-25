@@ -34,6 +34,40 @@
 
 ゲーム画面の「遊び方」ボタンからも同じ説明が確認できます。
 
+## ローカルで動かす
+
+クローン後、いずれか好きな方法で動作確認できます。
+
+### A. お手軽 (Python があればそれだけ)
+
+```sh
+scripts/serve.sh                # → http://127.0.0.1:8765/
+```
+
+リポジトリにコミットされている `public/yacht.wasm` をそのまま配信します。
+JS / HTML / CSS だけ編集してブラウザで `Ctrl+Shift+R` すれば反映されます。
+
+### B. Docker
+
+ローカルに D 言語環境を入れたくない場合:
+
+```sh
+docker compose up --build       # → http://127.0.0.1:8765/
+```
+
+コンテナ内で WASM を再ビルドしてから配信するので、`source/` を編集して
+`docker compose up` し直せば反映されます。停止は `Ctrl+C`、片付けは `docker compose down`。
+
+### C. ローカル D 環境で再ビルド
+
+D ソースを編集して WASM を更新したい場合 (詳細は `docs/README.md`):
+
+```sh
+sudo pacman -S ldc lld python   # 一度だけ (Arch の場合)
+scripts/build-wasm.sh            # → public/yacht.wasm を更新
+scripts/serve.sh                 # → http://127.0.0.1:8765/
+```
+
 ## ライセンス
 
 [MIT License](LICENSE)
