@@ -1,0 +1,10 @@
+services:
+  yacht:
+    build: .
+    image: yacht-dev
+    ports:
+      - "8765:8765"
+    volumes:
+      # ホスト側のソースをそのままマウント。
+      # 編集 → docker compose up し直しで再ビルド & 配信。
+      - .:/app
