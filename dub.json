@@ -1,0 +1,34 @@
+{
+    "name": "yacht",
+    "description": "Yacht dice game (CLI + Web).",
+    "authors": ["kip2"],
+    "license": "proprietary",
+    "sourcePaths": ["source"],
+    "importPaths": ["source"],
+    "buildTypes": {
+        "unittest": {
+            "buildOptions": ["unittests", "debugMode", "debugInfo"]
+        }
+    },
+    "configurations": [
+        {
+            "name": "cli",
+            "targetType": "executable",
+            "targetPath": "bin",
+            "targetName": "yacht",
+            "mainSourceFile": "source/cli/app.d",
+            "excludedSourceFiles": ["source/web/*.d"]
+        },
+        {
+            "name": "web",
+            "targetType": "executable",
+            "targetPath": "bin",
+            "targetName": "yacht-web",
+            "mainSourceFile": "source/web/app.d",
+            "excludedSourceFiles": ["source/cli/*.d", "source/ui/*.d"],
+            "dependencies": {
+                "vibe-d:http": "~>0.10"
+            }
+        }
+    ]
+}

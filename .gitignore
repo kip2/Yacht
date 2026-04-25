@@ -1,0 +1,10 @@
+/bin/
+/.dub/
+*.o
+*.obj
+*.exe
+*.a
+*.lib
+*.so
+*.dylib
+yacht

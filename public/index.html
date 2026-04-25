@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Yacht</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main id="app">
+    <header class="topbar">
+      <h1>Yacht</h1>
+      <div class="topbar-actions">
+        <button id="btn-help" class="secondary" type="button" data-i18n="howToPlayBtn">遊び方</button>
+        <button id="btn-lang" class="lang-btn secondary" type="button">EN</button>
+      </div>
+    </header>
+
+    <section id="setup">
+      <h2 data-i18n="newGame">新しいゲーム</h2>
+      <label>
+        <span data-i18n="numPlayers">プレイヤー人数:</span>
+        <input type="number" id="num-players" min="1" max="5" value="2">
+      </label>
+      <div id="name-fields"></div>
+      <button id="btn-new" data-i18n="start">開始</button>
+    </section>
+
+    <section id="game" hidden>
+      <div id="status" class="status"></div>
+
+      <div class="dice-area">
+        <div id="dice"></div>
+        <div class="actions">
+          <button id="btn-roll" type="button"></button>
+          <button id="btn-restart" class="secondary" type="button" data-i18n="restart">やり直す</button>
+        </div>
+        <p class="hint" id="dice-hint" data-i18n="diceHint">
+          ダイスをクリックすると振り直し対象として選べます。手番の最初は何も選ばずそのまま「振る」を押してください。
+        </p>
+      </div>
+
+      <div id="categories" class="categories"></div>
+
+      <table id="scoreboard" class="scoreboard"></table>
+
+      <div id="game-over" class="game-over" hidden></div>
+    </section>
+  </main>
+
+  <div id="help-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <h2 id="help-title" data-i18n="helpTitle">ヨットの遊び方</h2>
+      <div id="help-content"></div>
+      <button id="btn-help-close" type="button" data-i18n="close">閉じる</button>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
