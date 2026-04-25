@@ -55,7 +55,8 @@ Yacht/
     ├── coding-style.md        # D の書き方ルール
     ├── interactive-cli.md     # 対話型 CLI の書き方パターン
     ├── architecture.md        # モジュール依存・クラス図・ターン進行
-    └── web.md                 # Web 版の技術スタックと REST API
+    ├── web.md                 # Web 版の技術スタックと REST API
+    └── wasm.md                # WebAssembly 版の計画・betterC 制約・JS 連携
 ```
 
 モジュールを増やすときのルール・具体的な書き方は `docs/` を参照。

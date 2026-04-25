@@ -17,7 +17,7 @@
             "targetPath": "bin",
             "targetName": "yacht",
             "mainSourceFile": "source/cli/app.d",
-            "excludedSourceFiles": ["source/web/*.d"]
+            "excludedSourceFiles": ["source/web/*.d", "source/wasm/*.d"]
         },
         {
             "name": "web",
@@ -25,7 +25,7 @@
             "targetPath": "bin",
             "targetName": "yacht-web",
             "mainSourceFile": "source/web/app.d",
-            "excludedSourceFiles": ["source/cli/*.d", "source/ui/*.d"],
+            "excludedSourceFiles": ["source/cli/*.d", "source/ui/*.d", "source/wasm/*.d"],
             "dependencies": {
                 "vibe-d:http": "~>0.10"
             }
