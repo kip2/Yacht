@@ -4,6 +4,7 @@ const LANG_KEY = "yacht.lang";
 
 const I18N = {
   ja: {
+    gameTitle: "ヨット",
     newGame: "新しいゲーム",
     numPlayers: "プレイヤー人数:",
     playerNamePlaceholder: (n) => `プレイヤー${n} の名前`,
@@ -66,6 +67,7 @@ const I18N = {
     },
   },
   en: {
+    gameTitle: "Yacht",
     newGame: "New Game",
     numPlayers: "Number of players:",
     playerNamePlaceholder: (n) => `Player ${n} name`,

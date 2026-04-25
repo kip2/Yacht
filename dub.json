@@ -2,7 +2,7 @@
     "name": "yacht",
     "description": "Yacht dice game (CLI + Web).",
     "authors": ["kip2"],
-    "license": "proprietary",
+    "license": "MIT",
     "sourcePaths": ["source"],
     "importPaths": ["source"],
     "buildTypes": {
