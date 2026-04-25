@@ -65,14 +65,16 @@ CLI 版を試したいときはこちら + `dmd` / `dub` も必要:
 
 ```sh
 sudo pacman -S dlang dub
-dub run -c cli
+dub run                           # CLI で対話プレイ
 ```
 
 ### unittest (CLI ドメインロジック)
 
 ```sh
-dub test                          # cli config の unittest (5 modules)
+dub test                          # CLI ドメインの unittest (5 modules)
 ```
+
+WASM 公開 API の自動テストもある。詳しくは `docs/testing.md` を参照。
 
 ## ブラウザでのテスト手順
 
@@ -91,17 +93,19 @@ Yacht/
 │   ├── cli/app.d        # CLI 版エントリ (REPL ループ)
 │   ├── wasm/exports.d   # WASM 用 extern(C) エクスポート + ゲーム状態 + PRNG
 │   ├── game/            # ドメイン (CLI/WASM 共通: state, dice, score, category)
-│   ├── ui/              # CLI 用 入出力 (parse, render)
-│   └── web/             # サーバ版用 (server ブランチで使用)
+│   └── ui/              # CLI 用 入出力 (parse, render)
 ├── public/              # WASM 版フロントエンド (GitHub Pages の配信元)
 │   ├── index.html
-│   ├── app.js           # WASM ロード + UI
+│   ├── app.js           # WASM ロード + UI + CPU AI
 │   ├── style.css
 │   └── yacht.wasm       # ビルド成果物 (リポジトリにコミット済)
-├── scripts/build-wasm.sh
+├── scripts/
+│   ├── build-wasm.sh
+│   └── serve.sh
+├── tests/               # 自動テスト
 ├── docs/                # 設計ドキュメント (このファイルを含む)
-├── .github/workflows/   # GitHub Pages デプロイ
-├── dub.json             # dub プロジェクト設定 (cli / web の 2 configuration)
+├── .github/workflows/   # Pages デプロイ + 自動テスト
+├── dub.json             # CLI 用 dub 設定
 └── CLAUDE.md            # AI 連携ルール
 ```
 
@@ -113,8 +117,11 @@ Yacht/
 | `coding-style.md`        | D コーディング規約                                     |
 | `interactive-cli.md`     | 対話型 CLI の REPL パターン                            |
 | `architecture.md`        | モジュール依存・クラス図・ターン進行                    |
-| `web.md`                 | サーバ版の技術スタック・REST API (`server` ブランチ向け) |
-| `wasm.md`                | WASM 版の設計・ビルド・JS 連携                          |
+| `wasm.md`                | WASM 版の設計・ビルド・betterC 制約                    |
+| `cpu.md`                 | CPU AI の戦略                                          |
+| `i18n.md`                | 言語追加の手順                                         |
+| `deploy.md`              | GitHub Pages デプロイの仕組み                          |
+| `testing.md`             | テスト戦略・実行手順                                   |
 
 ## ライセンス
 

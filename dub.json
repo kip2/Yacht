@@ -1,34 +1,18 @@
 {
     "name": "yacht",
-    "description": "Yacht dice game (CLI + Web).",
+    "description": "Yacht dice game (CLI + WASM).",
     "authors": ["kip2"],
     "license": "MIT",
+    "targetType": "executable",
+    "targetPath": "bin",
+    "targetName": "yacht",
+    "mainSourceFile": "source/cli/app.d",
     "sourcePaths": ["source"],
     "importPaths": ["source"],
+    "excludedSourceFiles": ["source/wasm/*.d"],
     "buildTypes": {
         "unittest": {
             "buildOptions": ["unittests", "debugMode", "debugInfo"]
         }
-    },
-    "configurations": [
-        {
-            "name": "cli",
-            "targetType": "executable",
-            "targetPath": "bin",
-            "targetName": "yacht",
-            "mainSourceFile": "source/cli/app.d",
-            "excludedSourceFiles": ["source/web/*.d", "source/wasm/*.d"]
-        },
-        {
-            "name": "web",
-            "targetType": "executable",
-            "targetPath": "bin",
-            "targetName": "yacht-web",
-            "mainSourceFile": "source/web/app.d",
-            "excludedSourceFiles": ["source/cli/*.d", "source/ui/*.d", "source/wasm/*.d"],
-            "dependencies": {
-                "vibe-d:http": "~>0.10"
-            }
-        }
-    ]
+    }
 }
