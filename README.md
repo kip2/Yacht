@@ -1,6 +1,6 @@
 # ヨット
 
-シンプルなダイスゲーム「ヨット (Yacht, 1938)」をブラウザで遊べるアプリ。
+シンプルなダイスゲーム「ヨット」をブラウザで遊べるアプリ。
 プレイヤー 1〜5 人、サーバ不要、ブラウザだけで完結します。
 
 **プレイ**: <https://kip2.github.io/Yacht/>
@@ -36,13 +36,7 @@
 
 ## ライセンス
 
-[MIT License](LICENSE)。
-ビルドで利用している D 言語のランタイム (Phobos / druntime) は Boost Software License 1.0、
-LDC のランタイムは BSD + LLVM Apache 2.0 (LLVM exception 付き) で、いずれも MIT と互換性のある寛容なライセンスです。
-
-ゲーム名「ヨット」は John Scarne が 1938 年に考案した古典ダイスゲーム
-"Yacht" の日本語名。パブリックドメインの題材を題材にしています
-(後年に Hasbro が登録した登録商標「Yahtzee」とは別物)。
+[MIT License](LICENSE)
 
 ## 開発者向け情報
 
