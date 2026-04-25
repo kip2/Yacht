@@ -107,7 +107,7 @@ dub run                         # ターミナルで対話プレイ
 
 # テスト
 dub test                        # CLI ドメインの unittest
-node --test tests/wasm/         # WASM exports の統合テスト
+node --test 'tests/**/*.test.mjs'  # WASM exports の統合テスト
 ```
 
 詳しい手順 (3 パス + ブラウザでのテスト) は `docs/README.md` を、

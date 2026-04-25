@@ -32,11 +32,13 @@ dub test
 **ブラウザを起動せずに WASM のロジック層を網羅できる** のが旨味。
 
 ```sh
-scripts/build-wasm.sh        # 必要に応じて先にビルド
-node --test tests/wasm/       # 全テスト実行
+scripts/build-wasm.sh                      # 必要に応じて先にビルド
+node --test 'tests/**/*.test.mjs'          # 全テスト実行
 ```
 
-実装: `tests/wasm/test.mjs` に `node --test` 形式で並べる。標準ライブラリ完結 (依存ゼロ)。
+実装: `tests/wasm/exports.test.mjs` に `node --test` 形式で並べる。
+標準ライブラリ完結 (依存ゼロ)。テストファイル名は `*.test.mjs` 規約にしておくと
+Node の自動検出 (`--glob`) と相性が良い。
 
 カバー範囲の例:
 - `yacht_new` 後の初期状態

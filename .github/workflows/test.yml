@@ -1,0 +1,39 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  dub-test:
+    name: D unittest (CLI ドメイン)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dlang-community/setup-dlang@v1
+        with:
+          compiler: dmd-latest
+      - name: dub test
+        run: dub test
+
+  wasm-test:
+    name: WASM 統合テスト (Node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dlang-community/setup-dlang@v1
+        with:
+          compiler: ldc-latest
+      - name: Install lld (wasm-ld)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lld
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'latest'
+      - name: Build WASM
+        run: scripts/build-wasm.sh
+      - name: Run WASM tests
+        run: node --test 'tests/**/*.test.mjs'
