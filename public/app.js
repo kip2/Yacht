@@ -29,6 +29,8 @@ const I18N = {
     close: "閉じる",
     loading: "読み込み中...",
     loadFailed: "yacht.wasm の読み込みに失敗しました。ページを再読み込みしてください。",
+    cpuLabel: "CPU",
+    cpuThinking: "CPU 思考中...",
     categories: {
       "ones": "エース", "twos": "デュース", "threes": "トレイ", "fours": "フォー",
       "fives": "ファイブ", "sixes": "シックス", "full-house": "フルハウス",
@@ -92,6 +94,8 @@ const I18N = {
     close: "Close",
     loading: "Loading...",
     loadFailed: "Failed to load yacht.wasm. Please reload the page.",
+    cpuLabel: "CPU",
+    cpuThinking: "CPU thinking...",
     categories: {
       "ones": "Ones", "twos": "Twos", "threes": "Threes", "fours": "Fours",
       "fives": "Fives", "sixes": "Sixes", "full-house": "Full House",
@@ -142,9 +146,11 @@ const state = {
   snapshot: null,
   lang: localStorage.getItem(LANG_KEY) || "ja",
   names: [],   // プレイヤー名 (WASM では持たない、JS 側で管理)
+  isCpu: [],   // 各プレイヤーが CPU かどうか (JS 側のみ)
 };
 
 const wasm = { exports: null };
+let cpuRunning = false;
 
 const el = (id) => document.getElementById(id);
 
@@ -249,15 +255,33 @@ function toggleLang() {
 function renderNameFields() {
   const n = parseInt(el("num-players").value, 10) || 1;
   const wrap = el("name-fields");
-  const previous = [...wrap.querySelectorAll("input")].map((i) => i.value);
+  const prevNames = [...wrap.querySelectorAll("input[type=text]")].map((i) => i.value);
+  const prevCpu = [...wrap.querySelectorAll("input[type=checkbox]")].map((i) => i.checked);
   wrap.innerHTML = "";
   for (let i = 0; i < n; i++) {
-    const input = document.createElement("input");
-    input.type = "text";
-    input.placeholder = t("playerNamePlaceholder", i + 1);
-    input.dataset.idx = String(i);
-    if (previous[i] !== undefined) input.value = previous[i];
-    wrap.appendChild(input);
+    const row = document.createElement("div");
+    row.className = "player-row";
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.placeholder = t("playerNamePlaceholder", i + 1);
+    nameInput.dataset.idx = String(i);
+    if (prevNames[i] !== undefined) nameInput.value = prevNames[i];
+
+    const cpuLabel = document.createElement("label");
+    cpuLabel.className = "cpu-toggle";
+    const cpuCheckbox = document.createElement("input");
+    cpuCheckbox.type = "checkbox";
+    cpuCheckbox.dataset.idx = String(i);
+    if (prevCpu[i]) cpuCheckbox.checked = true;
+    const cpuText = document.createElement("span");
+    cpuText.textContent = t("cpuLabel");
+    cpuLabel.appendChild(cpuCheckbox);
+    cpuLabel.appendChild(cpuText);
+
+    row.appendChild(nameInput);
+    row.appendChild(cpuLabel);
+    wrap.appendChild(row);
   }
 }
 
@@ -267,24 +291,34 @@ function renderNameFields() {
 
 function startNewGame() {
   const n = parseInt(el("num-players").value, 10) || 1;
-  const inputs = el("name-fields").querySelectorAll("input");
+  const rows = el("name-fields").querySelectorAll(".player-row");
   const names = [];
-  inputs.forEach((inp, i) => {
-    names.push((inp.value || "").trim() || "P" + (i + 1));
+  const isCpu = [];
+  rows.forEach((row, i) => {
+    const ni = row.querySelector("input[type=text]");
+    const ci = row.querySelector("input[type=checkbox]");
+    const cpu = !!(ci && ci.checked);
+    let name = ((ni && ni.value) || "").trim();
+    if (!name) name = cpu ? ("CPU" + (i + 1)) : ("P" + (i + 1));
+    names.push(name);
+    isCpu.push(cpu);
   });
   state.names = names;
+  state.isCpu = isCpu;
   // 32-bit 符号なしシード。0 だと xorshift が縮退するので最低 1 を入れる。
   const seed = ((Math.random() * 0x100000000) >>> 0) || 1;
   wasm.exports.yacht_new(n, seed);
   syncState();
   showGame();
   render();
+  scheduleCpuIfNeeded();
 }
 
 function showGame() { el("setup").hidden = true; el("game").hidden = false; }
 function showSetup() { el("setup").hidden = false; el("game").hidden = true; }
 
 function rollClicked() {
+  if (cpuRunning) return;
   const s = state.snapshot;
   if (!s) return;
   if (!s.turnStarted) rollAll();
@@ -308,17 +342,20 @@ function rerollSelected() {
 }
 
 function recordScore(catKey) {
+  if (cpuRunning) return;
   const c = CATEGORY_KEYS.indexOf(catKey);
   if (c < 0) return;
   if (wasm.exports.yacht_record(c) < 0) { flash("cannot record"); return; }
   syncState();
   render();
+  scheduleCpuIfNeeded();
 }
 
 function restart() {
   if (!confirm(t("confirmAbandon"))) return;
   state.snapshot = null;
   state.names = [];
+  state.isCpu = [];
   renderNameFields();
   showSetup();
 }
@@ -368,6 +405,12 @@ function renderRollButton(s) {
   const btn = el("btn-roll");
   if (s.isOver) { btn.hidden = true; return; }
   btn.hidden = false;
+  // CPU の手番 (または CPU 思考中) は人間の操作を許さない
+  if (state.isCpu[s.currentPlayer]) {
+    btn.disabled = true;
+    btn.textContent = t("cpuThinking");
+    return;
+  }
   btn.textContent = !s.turnStarted ? t("rollFirst") : t("rerollSelected");
   btn.disabled = s.rollsLeft <= 0;
 }
@@ -388,6 +431,7 @@ function renderCategories(s) {
   const wrap = el("categories");
   wrap.innerHTML = "";
   if (s.isOver || !s.turnStarted) return;
+  if (state.isCpu[s.currentPlayer]) return; // CPU 手番中はカテゴリ確定ボタンを出さない
   CATEGORY_KEYS.forEach((cat) => {
     if (!(cat in (s.preview || {}))) return;
     const label = tCat(cat);
@@ -516,6 +560,112 @@ function renderHelpModal() {
 
 function openHelp() { el("help-modal").hidden = false; renderHelpModal(); }
 function closeHelp() { el("help-modal").hidden = true; }
+
+// =========================================================================
+// CPU プレイヤー (簡易 AI、JS 側で完結)
+// =========================================================================
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+function scheduleCpuIfNeeded() {
+  if (cpuRunning) return;
+  const s = state.snapshot;
+  if (!s || s.isOver) return;
+  if (state.isCpu[s.currentPlayer]) {
+    setTimeout(cpuTurn, 500);
+  }
+}
+
+async function cpuTurn() {
+  if (cpuRunning) return;
+  cpuRunning = true;
+  // 中断判定: ゲーム終了 / 中断 / 別プレイヤー (人間) になっていたら抜ける
+  const aborted = () => {
+    const s = state.snapshot;
+    return !s || s.isOver || !state.isCpu[s.currentPlayer];
+  };
+  try {
+    if (aborted()) return;
+    if (!wasm.exports.yacht_roll_all()) return;
+    syncState(); render();
+    await sleep(900);
+
+    for (let i = 0; i < 2; i++) {
+      if (aborted()) return;
+      const positions = decideReroll();
+      if (positions === null || positions.length === 0) break;
+      const mask = positions.reduce((m, p) => m | (1 << p), 0);
+      if (!wasm.exports.yacht_reroll(mask)) break;
+      syncState(); render();
+      await sleep(900);
+    }
+
+    if (aborted()) return;
+    const cat = decideCategory();
+    if (cat >= 0) wasm.exports.yacht_record(cat);
+    syncState(); render();
+  } finally {
+    cpuRunning = false;
+  }
+  scheduleCpuIfNeeded(); // 次のプレイヤーも CPU なら連鎖
+}
+
+// 振り直すダイス位置 (0-indexed) の配列を返す。null = 振り直さない。
+// 戦略:
+//  - 5 個揃い (yacht): 振り直さない
+//  - 4 個揃い: 残りの 1 個を振り直す (5 個目を狙う)
+//  - 3 個揃い + ペア (full house): 振り直さない
+//  - 3 個揃い: 残り 2 個を振り直す (4 個揃いを狙う)
+//  - ストレート完成 (1-5 or 2-6): 振り直さない
+//  - ペア: ペア以外を振り直す (3 個目を狙う)
+//  - すべてバラバラ: 全部振り直す
+function decideReroll() {
+  const dice = state.snapshot.dice;
+  const groups = new Map(); // face -> [indices]
+  dice.forEach((v, i) => {
+    if (!groups.has(v)) groups.set(v, []);
+    groups.get(v).push(i);
+  });
+  const sorted = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
+  const topFace = sorted[0][0];
+  const topCount = sorted[0][1].length;
+
+  if (topCount === 5) return null;
+  if (topCount === 4) return dice.flatMap((v, i) => v !== topFace ? [i] : []);
+  if (topCount === 3) {
+    if (sorted.length > 1 && sorted[1][1].length === 2) return null; // full house
+    return dice.flatMap((v, i) => v !== topFace ? [i] : []);
+  }
+
+  const unique = [...new Set(dice)];
+  const has = (n) => unique.includes(n);
+  if ([1,2,3,4,5].every(has) || [2,3,4,5,6].every(has)) return null;
+
+  if (topCount === 2) return dice.flatMap((v, i) => v !== topFace ? [i] : []);
+  return [0, 1, 2, 3, 4];
+}
+
+// 確定するカテゴリ (CATEGORY_KEYS の index) を返す。
+// 戦略: preview の中で最高得点を選ぶ。0 点しか出ないなら難しい役から潰す
+// (yacht/big-straight などを「捨て役」として 0 点で確定する)。
+function decideCategory() {
+  const preview = state.snapshot.preview || {};
+  const entries = Object.entries(preview);
+  if (entries.length === 0) return -1;
+
+  const positive = entries.filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1]);
+  if (positive.length > 0) return CATEGORY_KEYS.indexOf(positive[0][0]);
+
+  // 全 0 点: 達成困難な順に捨てる
+  const sacrifice = [
+    "yacht", "big-straight", "little-straight", "four-of-a-kind", "full-house",
+    "ones", "twos", "threes", "fours", "fives", "sixes", "choice",
+  ];
+  for (const k of sacrifice) {
+    if (k in preview) return CATEGORY_KEYS.indexOf(k);
+  }
+  return -1;
+}
 
 // =========================================================================
 // 起動

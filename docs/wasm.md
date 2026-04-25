@@ -220,3 +220,44 @@ const Yacht = {
   分離は `version (D_BetterC)` だけで十分。
 - `--export-dynamic` で全 D 関数を export しているが、
   wasm のサイズは ~8KB なので問題視していない。気になるなら個別 `--export=yacht_*` に切り替える。
+
+## CPU プレイヤー (`cpu` ブランチ)
+
+ゲーム本体は WASM (D 製) のままで、AI ロジックは **JS 側** に持つ。
+WASM 再ビルドなしで戦略を差し替えられるのと、決定論的な再現をしないからこの分割が楽。
+
+### セットアップ UI
+
+`renderNameFields()` が各プレイヤー行に「CPU」チェックボックスを生やす。
+チェック有無は `state.isCpu[i]` (boolean 配列) に保存。
+名前フィールドが空の場合のデフォルトは CPU なら `CPU<n>`、人間なら `P<n>`。
+
+### 進行制御
+
+- `recordScore()` と `startNewGame()` の末尾で `scheduleCpuIfNeeded()` を呼ぶ。
+- `scheduleCpuIfNeeded()` は現在プレイヤーが CPU かつ実行中で無ければ `setTimeout(cpuTurn, 500)`。
+- `cpuTurn()` は `cpuRunning` フラグで再入を防ぎつつ、
+  `roll_all → reroll(最大2回) → record` を `await sleep(900)` 挟みで進める。
+- 各ステップ前に `aborted()` で「ゲーム終了/中断/プレイヤー人間化」を確認し、
+  該当すれば即座に抜ける (リスタート時の競合対策)。
+
+### 戦略 (簡易ヒューリスティック、`decideReroll` / `decideCategory`)
+
+- 振り直し:
+  - 5 個揃い・3+2 (full house)・1-5 / 2-6 ストレート完成 → 振り直さない
+  - 4 個揃い → 余りの 1 個だけ振り直す
+  - 3 個揃い → 残り 2 個振り直す
+  - 2 個揃い → ペア以外を振り直す
+  - 全部バラバラ → 全部振り直す
+- 確定カテゴリ:
+  - preview の正のスコアが最大のものを選ぶ
+  - 全 0 点しかない場合は **達成困難な役から捨てる** (yacht → big-straight → ... → choice の順)
+
+ストレート系を能動的に狙う動きはしないので、強い AI ではない。
+学習目的としては UI 連携と JS 側の状態機械を見るのが主旨。
+
+### UI 上の挙動
+
+- CPU 手番中、振るボタンは disabled で `CPU 思考中...` 表示
+- カテゴリ確定ボタンは描画しない
+- ダイスは普通にアニメーションのように更新される (各 step で `render()` を呼ぶため)
